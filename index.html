@@ -194,14 +194,31 @@ function markAllDone() {
   batch.commit().catch(err => console.error('일괄 완료 처리 실패:', err));
 }
 function toggleCheck(id) {
-  const order = allOrders.find(o => o.id === id);
-  const isCurrentlyDone = order && order.status === '완료';
-  // 화면 즉시 반영 (낙관적 업데이트)
-  if (order) order.status = isCurrentlyDone ? '주문완료' : '완료';
+  const order = allOrders.find(o => String(o.id) === String(id));
+  if (!order) {
+    showDebug('❌ 주문을 못 찾음 | 누른 id=' + id + ' | 목록 첫 id=' + (allOrders[0] && allOrders[0].id));
+    return;
+  }
+  const isCurrentlyDone = order.status === '완료';
+  const newStatus = isCurrentlyDone ? '주문완료' : '완료';
+  order.status = newStatus; // 화면 즉시 반영
   renderOrders();
+  showDebug('✅ 클릭 처리됨 | id=' + id + ' | 새 상태=' + newStatus + ' | 저장 시도중...');
   // Firestore에 영구 저장
-  db.collection('orders').doc(id).update({ status: isCurrentlyDone ? '주문완료' : '완료' })
-    .catch(err => console.error('상태 저장 실패:', err));
+  db.collection('orders').doc(String(id)).update({ status: newStatus })
+    .then(() => showDebug('💾 저장 성공 | id=' + id + ' | 상태=' + newStatus))
+    .catch(err => showDebug('🔥 저장 실패: ' + err.message));
+}
+
+function showDebug(msg) {
+  let bar = document.getElementById('debug-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'debug-bar';
+    bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#222;color:#0f0;font-size:12px;padding:8px 12px;z-index:9999;font-family:monospace;word-break:break-all;';
+    document.body.appendChild(bar);
+  }
+  bar.textContent = msg;
 }
 
 // 이벤트 위임: order-list 안의 체크 버튼 클릭을 한 곳에서 처리 (innerHTML 재생성에도 항상 동작)
