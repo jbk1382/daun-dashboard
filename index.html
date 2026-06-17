@@ -37,8 +37,11 @@
 
   .order-list { padding: 0 12px 80px; }
   .order-card { background: #fff; border: 1px solid #eee; border-radius: 14px; padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; transition: opacity 0.2s; }
-  .order-card.done { opacity: 0.4; }
-  .order-card.done .order-name { text-decoration: line-through; color: #aaa; }
+  .order-card.done { background: #fafafa; }
+  .order-card.done .order-name { text-decoration: line-through; text-decoration-thickness: 2px; color: #aaa; }
+  .order-card.done .order-meta { text-decoration: line-through; color: #ccc; }
+  .order-card.done .order-icon { opacity: 0.35; }
+  .order-card.done .order-price { text-decoration: line-through; color: #bbb; }
   .order-card.new-pulse { border-color: #1a7a4a; background: #f0faf4; animation: pulse 0.6s ease; }
   @keyframes pulse { 0%{transform:scale(1)} 50%{transform:scale(1.01)} 100%{transform:scale(1)} }
 
@@ -49,7 +52,7 @@
   .order-name { font-size: 15px; font-weight: 700; }
   .order-meta { font-size: 12px; color: #888; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .order-price { font-size: 13px; font-weight: 700; color: #1a7a4a; margin-top: 2px; }
-  .check-btn { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid #ccc; background: #fff; cursor: pointer; font-size: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .check-btn { width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid #ccc; background: #fff; cursor: pointer; font-size: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; position: relative; z-index: 5; }
   .check-btn:hover { background: #e8f5e9; border-color: #1a7a4a; }
   .check-btn.checked { background: #1a7a4a; border-color: #1a7a4a; color: #fff; }
 
@@ -102,7 +105,6 @@
   </select>
   <button class="btn-sound" id="sound-btn" onclick="toggleSound()">🔔 소리 켜짐</button>
   <button class="btn-done-all" onclick="markAllDone()">✅ 전체 완료</button>
-  <button class="btn-clear" onclick="clearDone()">🗑 완료 정리</button>
 </div>
 
 <div class="date-tab" id="date-tab"></div>
@@ -129,7 +131,6 @@ const firebaseConfig = {
 // ─── 상태 ────────────────────────────────────────────────────
 let allOrders = [];
 let checkedIds = new Set();
-let hiddenIds  = new Set();
 let soundEnabled = true;
 let filterMode = 'all';
 let prevOrderIds = new Set();
@@ -187,11 +188,6 @@ function markAllDone() {
   getFilteredByDate().forEach(o => checkedIds.add(o.id));
   renderOrders();
 }
-function clearDone() {
-  checkedIds.forEach(id => hiddenIds.add(id));
-  checkedIds.clear();
-  renderOrders();
-}
 function toggleCheck(id) {
   if (checkedIds.has(id)) checkedIds.delete(id);
   else checkedIds.add(id);
@@ -200,10 +196,10 @@ function toggleCheck(id) {
 
 // 이벤트 위임: order-list 안의 체크 버튼 클릭을 한 곳에서 처리 (innerHTML 재생성에도 항상 동작)
 document.getElementById('order-list').addEventListener('click', function(e) {
-  const btn = e.target.closest('.check-btn');
-  if (btn && btn.dataset.orderId) {
-    toggleCheck(btn.dataset.orderId);
-  }
+  const btn = e.target.closest('button.check-btn');
+  if (!btn) return;
+  const id = btn.getAttribute('data-order-id');
+  if (id) toggleCheck(id);
 });
 
 // ─── 날짜 필터 ───────────────────────────────────────────────
@@ -241,7 +237,7 @@ function selectDate(d) {
 
 // ─── 렌더링 ──────────────────────────────────────────────────
 function renderOrders() {
-  let orders = getFilteredByDate().filter(o => !hiddenIds.has(o.id));
+  let orders = getFilteredByDate();
 
   // 요약
   const total = orders.length;
