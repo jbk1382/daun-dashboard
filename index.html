@@ -36,18 +36,18 @@
   .section-title { padding: 10px 16px 6px; font-size: 12px; font-weight: 700; color: #888; letter-spacing: 0.5px; }
 
   .order-list { padding: 0 12px 80px; }
-  .order-card { background: #fff; border: 1px solid #eee; border-radius: 14px; padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; transition: opacity 0.2s; }
+  .order-card { background: #fff; border: 1px solid #eee; border-radius: 14px; padding: 12px 14px; margin-bottom: 8px; transition: opacity 0.2s; }
   .order-card.done { background: #fafafa; }
   .order-card.done .order-name { text-decoration: line-through; text-decoration-thickness: 2px; color: #aaa; }
   .order-card.done .order-meta { text-decoration: line-through; color: #ccc; }
-  .order-card.done .order-icon { opacity: 0.35; }
+  .order-card.done .drink-icons { opacity: 0.35; }
   .order-card.done .order-price { text-decoration: line-through; color: #bbb; }
   .order-card.new-pulse { border-color: #1a7a4a; background: #f0faf4; animation: pulse 0.6s ease; }
   @keyframes pulse { 0%{transform:scale(1)} 50%{transform:scale(1.01)} 100%{transform:scale(1)} }
 
-  .order-num { font-size: 12px; font-weight: 700; color: #aaa; min-width: 28px; text-align: center; }
-  .order-time { font-size: 11px; color: #888; min-width: 46px; text-align: center; }
-  .order-icon { font-size: 26px; flex-shrink: 0; }
+  .order-top-row { display: flex; align-items: center; gap: 12px; }
+  .order-num { font-size: 12px; font-weight: 700; color: #aaa; min-width: 28px; text-align: center; flex-shrink: 0; }
+  .order-time { font-size: 11px; color: #888; min-width: 46px; text-align: center; flex-shrink: 0; }
   .order-info { flex: 1; min-width: 0; }
   .order-name { font-size: 15px; font-weight: 700; }
   .order-meta { font-size: 12px; color: #888; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -55,6 +55,14 @@
   .check-btn { width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid #ccc; background: #fff; cursor: pointer; font-size: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; position: relative; z-index: 5; }
   .check-btn:hover { background: #e8f5e9; border-color: #1a7a4a; }
   .check-btn.checked { background: #1a7a4a; border-color: #1a7a4a; color: #fff; }
+
+  /* 음료 이미지 줄 (사이즈가 큰 아이콘들을 가로로 나열) */
+  .drink-icons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding-left: 40px; }
+  .drink-icon-box { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .drink-icon-img { width: 56px; height: 56px; border-radius: 14px; object-fit: cover; background: #f0faf4; border: 1px solid #e0f0e6; }
+  .drink-icon-emoji { width: 56px; height: 56px; border-radius: 14px; background: #f0faf4; border: 1px solid #e0f0e6; display: flex; align-items: center; justify-content: center; font-size: 30px; }
+  .drink-size-badge { font-size: 11px; font-weight: 700; color: #fff; background: #1a7a4a; border-radius: 99px; padding: 1px 9px; }
+  .drink-qty-badge { font-size: 10px; color: #555; font-weight: 600; }
 
   .empty { text-align: center; padding: 48px 16px; color: #aaa; font-size: 14px; line-height: 2; }
 
@@ -151,14 +159,14 @@ function fmtTime(isoStr) {
   return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 }
 
-// 음료 이름으로 등록된 아이콘(이모지 또는 이미지)을 가져와 HTML로 반환
+// 음료 이름으로 등록된 아이콘(이모지 또는 이미지)을 가져와 HTML로 반환 (큰 박스 형태)
 function getDrinkIconHtml(name) {
   const src = drinkIconMap[name];
-  if (!src) return '<span style="font-size:26px;">🥤</span>'; // 매칭 안 되면 기본값
+  if (!src) return '<div class="drink-icon-emoji">🥤</div>'; // 매칭 안 되면 기본값
   if (src.startsWith('emoji:')) {
-    return `<span style="font-size:26px;">${src.replace('emoji:','')}</span>`;
+    return `<div class="drink-icon-emoji">${src.replace('emoji:','')}</div>`;
   }
-  return `<img src="${src}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;background:#f0faf4;" onerror="this.outerHTML='🥤'">`;
+  return `<img class="drink-icon-img" src="${src}" alt="" onerror="this.outerHTML='<div class=&quot;drink-icon-emoji&quot;>🥤</div>'">`;
 }
 
 // config/drinks에서 음료별 아이콘 정보를 불러와 매핑 구성
@@ -288,7 +296,14 @@ function renderOrders() {
   } else {
     bar.innerHTML = Object.entries(drinkMap)
       .sort((a,b) => b[1]-a[1])
-      .map(([name,cnt]) => `<div class="chip">${getDrinkIconHtml(name).replace(/font-size:26px/,'font-size:16px').replace(/width:34px;height:34px/,'width:18px;height:18px')}<span>${name}</span><span class="cnt">${cnt}잔</span></div>`)
+      .map(([name,cnt]) => {
+        const src = drinkIconMap[name];
+        let mini;
+        if (!src) mini = '<span style="font-size:16px;">🥤</span>';
+        else if (src.startsWith('emoji:')) mini = `<span style="font-size:16px;">${src.replace('emoji:','')}</span>`;
+        else mini = `<img src="${src}" alt="" style="width:18px;height:18px;border-radius:50%;object-fit:cover;" onerror="this.style.display='none'">`;
+        return `<div class="chip">${mini}<span>${name}</span><span class="cnt">${cnt}잔</span></div>`;
+      })
       .join('');
   }
 
@@ -338,10 +353,19 @@ function renderOrders() {
 
 function buildOrderCard(o, num) {
   const isDone = o.status === '완료';
-  const firstItemName = (o.items && o.items[0] && o.items[0].name) || '';
-  const iconHtml = getDrinkIconHtml(firstItemName);
-  const extraCount = (o.items && o.items.length > 1) ? o.items.length - 1 : 0;
-  const itemsSummary = (o.items || []).map(i => `${i.name}(${i.size||'M'})×${i.qty||1}`).join(', ');
+  const items = o.items || [];
+  // 각 음료를 개별 이미지+사이즈+수량으로 표시
+  const drinkIconsHtml = items.map(i => {
+    const iconHtml = getDrinkIconHtml(i.name);
+    const size = i.size || 'M';
+    const qty = i.qty || 1;
+    return `<div class="drink-icon-box">
+      ${iconHtml}
+      <span class="drink-size-badge">${size}</span>
+      ${qty > 1 ? `<span class="drink-qty-badge">×${qty}</span>` : ''}
+    </div>`;
+  }).join('');
+  const itemsSummary = items.map(i => `${i.name}(${i.size||'M'})×${i.qty||1}`).join(', ');
   const meta = [o.location, itemsSummary].filter(Boolean).join(' · ');
   const orderTimeStr = fmtTime(o.orderTime);
   const delivLabel = o.deliveryLabel || o.deliveryDate || '';
@@ -349,20 +373,22 @@ function buildOrderCard(o, num) {
   const cardBg = isDone ? 'background:#f0f0f0;' : '';
 
   return `<div class="order-card${isDone?' done':''}" id="card-${o.id}" style="${cardBg}">
-    <div class="order-num">#${num}</div>
-    <div class="order-time">${orderTimeStr}<br><span style="font-size:10px;color:#bbb;">접수</span></div>
-    <div class="order-icon" style="${isDone?'opacity:0.35;':''}position:relative;">${iconHtml}${extraCount>0?`<span style="position:absolute;bottom:-4px;right:-6px;background:#1a7a4a;color:#fff;font-size:9px;border-radius:99px;padding:0 4px;font-weight:700;">+${extraCount}</span>`:''}</div>
-    <div class="order-info">
-      <div class="order-name" style="${strike}">${o.name || '이름없음'} ${isDone?'<span style=\"color:#1a7a4a;font-size:11px;\">[완료]</span>':''}</div>
-      <div class="order-meta" style="${strike}">${meta || '정보 없음'}</div>
-      <div class="order-meta">
-        ${delivLabel ? `<span class="delivery-tag">${delivLabel}</span>` : ''}
-        ${o.deliveryTime ? `<b style="color:#1a7a4a;">${o.deliveryTime}</b>` : ''}
-        ${o.extraRequest ? ` · 📝 ${o.extraRequest}` : ''}
+    <div class="order-top-row">
+      <div class="order-num">#${num}</div>
+      <div class="order-time">${orderTimeStr}<br><span style="font-size:10px;color:#bbb;">접수</span></div>
+      <div class="order-info">
+        <div class="order-name" style="${strike}">${o.name || '이름없음'} ${isDone?'<span style=\"color:#1a7a4a;font-size:11px;\">[완료]</span>':''}</div>
+        <div class="order-meta" style="${strike}">${meta || '정보 없음'}</div>
+        <div class="order-meta">
+          ${delivLabel ? `<span class="delivery-tag">${delivLabel}</span>` : ''}
+          ${o.deliveryTime ? `<b style="color:#1a7a4a;">${o.deliveryTime}</b>` : ''}
+          ${o.extraRequest ? ` · 📝 ${o.extraRequest}` : ''}
+        </div>
+        <div class="order-price" style="${strike}">${fmtPrice(o.totalPrice)}</div>
       </div>
-      <div class="order-price" style="${strike}">${fmtPrice(o.totalPrice)}</div>
+      <button class="check-btn${isDone?' checked':''}" data-order-id="${o.id}" onclick="toggleCheck(this.getAttribute('data-order-id'))" title="${isDone?'완료 취소':'완료 처리'}">✓</button>
     </div>
-    <button class="check-btn${isDone?' checked':''}" data-order-id="${o.id}" onclick="toggleCheck(this.getAttribute('data-order-id'))" title="${isDone?'완료 취소':'완료 처리'}">✓</button>
+    <div class="drink-icons">${drinkIconsHtml}</div>
   </div>`;
 }
 
