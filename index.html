@@ -221,13 +221,7 @@ function showDebug(msg) {
   bar.textContent = msg;
 }
 
-// 이벤트 위임: order-list 안의 체크 버튼 클릭을 한 곳에서 처리 (innerHTML 재생성에도 항상 동작)
-document.getElementById('order-list').addEventListener('click', function(e) {
-  const btn = e.target.closest('button.check-btn');
-  if (!btn) return;
-  const id = btn.getAttribute('data-order-id');
-  if (id) toggleCheck(id);
-});
+// 체크 버튼은 각 버튼의 인라인 onclick으로 처리합니다 (이벤트 위임과 중복되지 않도록 단일화)
 
 // ─── 날짜 필터 ───────────────────────────────────────────────
 function getOrderDate(o) {
