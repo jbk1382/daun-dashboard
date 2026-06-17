@@ -131,6 +131,7 @@ const firebaseConfig = {
 // ─── 상태 ────────────────────────────────────────────────────
 let allOrders = [];
 let db = null;
+let drinkIconMap = {}; // 음료 이름 -> 이미지/이모지 매핑 (config/drinks에서 로드)
 // 완료 상태는 각 주문 객체의 status 필드(Firestore에 영구 저장)로 관리합니다
 let soundEnabled = true;
 let filterMode = 'all';
@@ -148,6 +149,28 @@ function fmtTime(isoStr) {
   if (!isoStr) return '--:--';
   const d = new Date(isoStr);
   return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// 음료 이름으로 등록된 아이콘(이모지 또는 이미지)을 가져와 HTML로 반환
+function getDrinkIconHtml(name) {
+  const src = drinkIconMap[name];
+  if (!src) return '<span style="font-size:26px;">🥤</span>'; // 매칭 안 되면 기본값
+  if (src.startsWith('emoji:')) {
+    return `<span style="font-size:26px;">${src.replace('emoji:','')}</span>`;
+  }
+  return `<img src="${src}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;background:#f0faf4;" onerror="this.outerHTML='🥤'">`;
+}
+
+// config/drinks에서 음료별 아이콘 정보를 불러와 매핑 구성
+function loadDrinkIcons() {
+  if (!db) return;
+  db.collection('config').doc('drinks').get().then(snap => {
+    if (snap.exists) {
+      const list = snap.data().list || [];
+      list.forEach(d => { if (d.name) drinkIconMap[d.name] = d.image || ''; });
+      renderOrders(); // 아이콘 매핑 적용해서 다시 그리기
+    }
+  }).catch(err => console.error('음료 아이콘 로드 실패:', err));
 }
 
 // ─── 헤더 날짜 ───────────────────────────────────────────────
@@ -195,30 +218,12 @@ function markAllDone() {
 }
 function toggleCheck(id) {
   const order = allOrders.find(o => String(o.id) === String(id));
-  if (!order) {
-    showDebug('❌ 주문을 못 찾음 | 누른 id=' + id + ' | 목록 첫 id=' + (allOrders[0] && allOrders[0].id));
-    return;
-  }
-  const isCurrentlyDone = order.status === '완료';
-  const newStatus = isCurrentlyDone ? '주문완료' : '완료';
+  if (!order) { console.error('주문을 찾을 수 없음:', id); return; }
+  const newStatus = order.status === '완료' ? '주문완료' : '완료';
   order.status = newStatus; // 화면 즉시 반영
   renderOrders();
-  showDebug('✅ 클릭 처리됨 | id=' + id + ' | 새 상태=' + newStatus + ' | 저장 시도중...');
-  // Firestore에 영구 저장
   db.collection('orders').doc(String(id)).update({ status: newStatus })
-    .then(() => showDebug('💾 저장 성공 | id=' + id + ' | 상태=' + newStatus))
-    .catch(err => showDebug('🔥 저장 실패: ' + err.message));
-}
-
-function showDebug(msg) {
-  let bar = document.getElementById('debug-bar');
-  if (!bar) {
-    bar = document.createElement('div');
-    bar.id = 'debug-bar';
-    bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#222;color:#0f0;font-size:12px;padding:8px 12px;z-index:9999;font-family:monospace;word-break:break-all;';
-    document.body.appendChild(bar);
-  }
-  bar.textContent = msg;
+    .catch(err => console.error('상태 저장 실패:', err));
 }
 
 // 체크 버튼은 각 버튼의 인라인 onclick으로 처리합니다 (이벤트 위임과 중복되지 않도록 단일화)
@@ -283,7 +288,7 @@ function renderOrders() {
   } else {
     bar.innerHTML = Object.entries(drinkMap)
       .sort((a,b) => b[1]-a[1])
-      .map(([name,cnt]) => `<div class="chip"><span>${name}</span><span class="cnt">${cnt}잔</span></div>`)
+      .map(([name,cnt]) => `<div class="chip">${getDrinkIconHtml(name).replace(/font-size:26px/,'font-size:16px').replace(/width:34px;height:34px/,'width:18px;height:18px')}<span>${name}</span><span class="cnt">${cnt}잔</span></div>`)
       .join('');
   }
 
@@ -333,7 +338,9 @@ function renderOrders() {
 
 function buildOrderCard(o, num) {
   const isDone = o.status === '완료';
-  const icon = (o.items && o.items[0]) ? '🥤' : '🧋';
+  const firstItemName = (o.items && o.items[0] && o.items[0].name) || '';
+  const iconHtml = getDrinkIconHtml(firstItemName);
+  const extraCount = (o.items && o.items.length > 1) ? o.items.length - 1 : 0;
   const itemsSummary = (o.items || []).map(i => `${i.name}(${i.size||'M'})×${i.qty||1}`).join(', ');
   const meta = [o.location, itemsSummary].filter(Boolean).join(' · ');
   const orderTimeStr = fmtTime(o.orderTime);
@@ -344,7 +351,7 @@ function buildOrderCard(o, num) {
   return `<div class="order-card${isDone?' done':''}" id="card-${o.id}" style="${cardBg}">
     <div class="order-num">#${num}</div>
     <div class="order-time">${orderTimeStr}<br><span style="font-size:10px;color:#bbb;">접수</span></div>
-    <div class="order-icon" style="${isDone?'opacity:0.35;':''}">${icon}</div>
+    <div class="order-icon" style="${isDone?'opacity:0.35;':''}position:relative;">${iconHtml}${extraCount>0?`<span style="position:absolute;bottom:-4px;right:-6px;background:#1a7a4a;color:#fff;font-size:9px;border-radius:99px;padding:0 4px;font-weight:700;">+${extraCount}</span>`:''}</div>
     <div class="order-info">
       <div class="order-name" style="${strike}">${o.name || '이름없음'} ${isDone?'<span style=\"color:#1a7a4a;font-size:11px;\">[완료]</span>':''}</div>
       <div class="order-meta" style="${strike}">${meta || '정보 없음'}</div>
@@ -367,6 +374,7 @@ try {
   db = firebase.firestore(app);
 
   badge.textContent = '연결 중...';
+  loadDrinkIcons(); // 음료별 아이콘(이모지/이미지) 미리 로드
 
   db.collection('orders')
     .orderBy('orderTime', 'desc')
