@@ -130,7 +130,8 @@ const firebaseConfig = {
 
 // ─── 상태 ────────────────────────────────────────────────────
 let allOrders = [];
-let checkedIds = new Set();
+let db = null;
+// 완료 상태는 각 주문 객체의 status 필드(Firestore에 영구 저장)로 관리합니다
 let soundEnabled = true;
 let filterMode = 'all';
 let prevOrderIds = new Set();
@@ -185,13 +186,22 @@ function applyFilter() {
   renderOrders();
 }
 function markAllDone() {
-  getFilteredByDate().forEach(o => checkedIds.add(o.id));
+  const targets = getFilteredByDate().filter(o => o.status !== '완료');
+  targets.forEach(o => { o.status = '완료'; }); // 화면 즉시 반영
   renderOrders();
+  const batch = db.batch();
+  targets.forEach(o => batch.update(db.collection('orders').doc(o.id), { status: '완료' }));
+  batch.commit().catch(err => console.error('일괄 완료 처리 실패:', err));
 }
 function toggleCheck(id) {
-  if (checkedIds.has(id)) checkedIds.delete(id);
-  else checkedIds.add(id);
+  const order = allOrders.find(o => o.id === id);
+  const isCurrentlyDone = order && order.status === '완료';
+  // 화면 즉시 반영 (낙관적 업데이트)
+  if (order) order.status = isCurrentlyDone ? '주문완료' : '완료';
   renderOrders();
+  // Firestore에 영구 저장
+  db.collection('orders').doc(id).update({ status: isCurrentlyDone ? '주문완료' : '완료' })
+    .catch(err => console.error('상태 저장 실패:', err));
 }
 
 // 이벤트 위임: order-list 안의 체크 버튼 클릭을 한 곳에서 처리 (innerHTML 재생성에도 항상 동작)
@@ -241,7 +251,7 @@ function renderOrders() {
 
   // 요약
   const total = orders.length;
-  const done  = orders.filter(o => checkedIds.has(o.id)).length;
+  const done  = orders.filter(o => o.status === '완료').length;
   const pending = total - done;
   const drinkMap = {};
   orders.forEach(o => {
@@ -268,7 +278,7 @@ function renderOrders() {
 
   // 필터 적용
   let filtered = orders.filter(o => {
-    const isDone = checkedIds.has(o.id);
+    const isDone = o.status === '완료';
     if (filterMode === 'pending') return !isDone;
     if (filterMode === 'done')    return isDone;
     return true;
@@ -294,7 +304,7 @@ function renderOrders() {
     });
     let html = '';
     Object.entries(groups).forEach(([time, grpOrders]) => {
-      const pendingCnt = grpOrders.filter(o => !checkedIds.has(o.id)).length;
+      const pendingCnt = grpOrders.filter(o => o.status !== '완료').length;
       html += `<div class="time-group-header">
         <span class="tg-time">📅 ${time}</span>
         <span class="tg-cnt">${grpOrders.length}건</span>
@@ -311,7 +321,7 @@ function renderOrders() {
 }
 
 function buildOrderCard(o, num) {
-  const isDone = checkedIds.has(o.id);
+  const isDone = o.status === '완료';
   const icon = (o.items && o.items[0]) ? '🥤' : '🧋';
   const itemsSummary = (o.items || []).map(i => `${i.name}(${i.size||'M'})×${i.qty||1}`).join(', ');
   const meta = [o.location, itemsSummary].filter(Boolean).join(' · ');
@@ -332,7 +342,7 @@ function buildOrderCard(o, num) {
       </div>
       <div class="order-price">${fmtPrice(o.totalPrice)}</div>
     </div>
-    <button class="check-btn${isDone?' checked':''}" data-order-id="${o.id}" title="${isDone?'완료 취소':'완료 처리'}">✓</button>
+    <button class="check-btn${isDone?' checked':''}" data-order-id="${o.id}" onclick="toggleCheck(this.getAttribute('data-order-id'))" title="${isDone?'완료 취소':'완료 처리'}">✓</button>
   </div>`;
 }
 
@@ -341,7 +351,7 @@ const badge = document.getElementById('conn-badge');
 
 try {
   const app = firebase.initializeApp(firebaseConfig);
-  const db  = firebase.firestore(app);
+  db = firebase.firestore(app);
 
   badge.textContent = '연결 중...';
 
