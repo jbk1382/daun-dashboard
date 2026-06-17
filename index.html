@@ -344,20 +344,22 @@ function buildOrderCard(o, num) {
   const meta = [o.location, itemsSummary].filter(Boolean).join(' · ');
   const orderTimeStr = fmtTime(o.orderTime);
   const delivLabel = o.deliveryLabel || o.deliveryDate || '';
+  const strike = isDone ? 'text-decoration:line-through;text-decoration-thickness:2px;color:#aaa;' : '';
+  const cardBg = isDone ? 'background:#f0f0f0;' : '';
 
-  return `<div class="order-card${isDone?' done':''}" id="card-${o.id}">
+  return `<div class="order-card${isDone?' done':''}" id="card-${o.id}" style="${cardBg}">
     <div class="order-num">#${num}</div>
     <div class="order-time">${orderTimeStr}<br><span style="font-size:10px;color:#bbb;">접수</span></div>
-    <div class="order-icon">${icon}</div>
+    <div class="order-icon" style="${isDone?'opacity:0.35;':''}">${icon}</div>
     <div class="order-info">
-      <div class="order-name">${o.name || '이름없음'}</div>
-      <div class="order-meta">${meta || '정보 없음'}</div>
+      <div class="order-name" style="${strike}">${o.name || '이름없음'} ${isDone?'<span style=\"color:#1a7a4a;font-size:11px;\">[완료]</span>':''}</div>
+      <div class="order-meta" style="${strike}">${meta || '정보 없음'}</div>
       <div class="order-meta">
         ${delivLabel ? `<span class="delivery-tag">${delivLabel}</span>` : ''}
         ${o.deliveryTime ? `<b style="color:#1a7a4a;">${o.deliveryTime}</b>` : ''}
         ${o.extraRequest ? ` · 📝 ${o.extraRequest}` : ''}
       </div>
-      <div class="order-price">${fmtPrice(o.totalPrice)}</div>
+      <div class="order-price" style="${strike}">${fmtPrice(o.totalPrice)}</div>
     </div>
     <button class="check-btn${isDone?' checked':''}" data-order-id="${o.id}" onclick="toggleCheck(this.getAttribute('data-order-id'))" title="${isDone?'완료 취소':'완료 처리'}">✓</button>
   </div>`;
