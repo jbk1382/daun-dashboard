@@ -379,7 +379,7 @@ try {
       }
       prevOrderIds = newIds;
 
-      allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      allOrders = snap.docs.map(d => ({ ...d.data(), id: d.id }));
       buildDateTabs();
       renderOrders();
     }, err => {
