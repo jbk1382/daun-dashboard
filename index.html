@@ -198,6 +198,14 @@ function toggleCheck(id) {
   renderOrders();
 }
 
+// 이벤트 위임: order-list 안의 체크 버튼 클릭을 한 곳에서 처리 (innerHTML 재생성에도 항상 동작)
+document.getElementById('order-list').addEventListener('click', function(e) {
+  const btn = e.target.closest('.check-btn');
+  if (btn && btn.dataset.orderId) {
+    toggleCheck(btn.dataset.orderId);
+  }
+});
+
 // ─── 날짜 필터 ───────────────────────────────────────────────
 function getOrderDate(o) {
   if (o.deliveryDate) return o.deliveryDate;
@@ -328,7 +336,7 @@ function buildOrderCard(o, num) {
       </div>
       <div class="order-price">${fmtPrice(o.totalPrice)}</div>
     </div>
-    <button class="check-btn${isDone?' checked':''}" onclick="toggleCheck('${o.id}')" title="${isDone?'완료 취소':'완료 처리'}">✓</button>
+    <button class="check-btn${isDone?' checked':''}" data-order-id="${o.id}" title="${isDone?'완료 취소':'완료 처리'}">✓</button>
   </div>`;
 }
 
