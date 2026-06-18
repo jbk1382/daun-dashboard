@@ -56,15 +56,15 @@
   .check-btn:hover { background: #e8f5e9; border-color: #1a7a4a; }
   .check-btn.checked { background: #1a7a4a; border-color: #1a7a4a; color: #fff; }
 
-  /* 음료 이미지 줄 (사이즈가 큰 아이콘들을 가로로 나열) */
-  .drink-icons { display: flex; gap: 8px; flex-wrap: nowrap; margin-top: 10px; padding-left: 40px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
-  .drink-icons::-webkit-scrollbar { height: 4px; }
+  /* 음료 이미지 (접수시간 옆에 인라인으로 배치, 많으면 가로 스크롤) */
+  .drink-icons { display: flex; gap: 6px; flex-wrap: nowrap; flex-shrink: 0; max-width: 150px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+  .drink-icons::-webkit-scrollbar { height: 3px; }
   .drink-icons::-webkit-scrollbar-thumb { background: #c8e6c9; border-radius: 4px; }
-  .drink-icon-box { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-  .drink-icon-img { width: 56px; height: 56px; border-radius: 14px; object-fit: cover; background: #f0faf4; border: 1px solid #e0f0e6; }
-  .drink-icon-emoji { width: 56px; height: 56px; border-radius: 14px; background: #f0faf4; border: 1px solid #e0f0e6; display: flex; align-items: center; justify-content: center; font-size: 30px; }
-  .drink-size-badge { font-size: 11px; font-weight: 700; color: #fff; background: #1a7a4a; border-radius: 99px; padding: 1px 9px; }
-  .drink-qty-badge { font-size: 10px; color: #555; font-weight: 600; }
+  .drink-icon-box { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
+  .drink-icon-img { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; background: #f0faf4; border: 1px solid #e0f0e6; }
+  .drink-icon-emoji { width: 44px; height: 44px; border-radius: 12px; background: #f0faf4; border: 1px solid #e0f0e6; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+  .drink-size-badge { font-size: 10px; font-weight: 700; color: #fff; background: #1a7a4a; border-radius: 99px; padding: 1px 7px; }
+  .drink-qty-badge { font-size: 9px; color: #555; font-weight: 600; }
 
   .empty { text-align: center; padding: 48px 16px; color: #aaa; font-size: 14px; line-height: 2; }
 
@@ -378,6 +378,7 @@ function buildOrderCard(o, num) {
     <div class="order-top-row">
       <div class="order-num">#${num}</div>
       <div class="order-time">${orderTimeStr}<br><span style="font-size:10px;color:#bbb;">접수</span></div>
+      <div class="drink-icons">${drinkIconsHtml}</div>
       <div class="order-info">
         <div class="order-name" style="${strike}">${o.name || '이름없음'} ${isDone?'<span style=\"color:#1a7a4a;font-size:11px;\">[완료]</span>':''}</div>
         <div class="order-meta" style="${strike}">${meta || '정보 없음'}</div>
@@ -390,7 +391,6 @@ function buildOrderCard(o, num) {
       </div>
       <button class="check-btn${isDone?' checked':''}" data-order-id="${o.id}" onclick="toggleCheck(this.getAttribute('data-order-id'))" title="${isDone?'완료 취소':'완료 처리'}">✓</button>
     </div>
-    <div class="drink-icons">${drinkIconsHtml}</div>
   </div>`;
 }
 
