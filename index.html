@@ -367,7 +367,10 @@ function buildOrderCard(o, num) {
       ${qty > 1 ? `<span class="drink-qty-badge">×${qty}</span>` : ''}
     </div>`;
   }).join('');
-  const itemsSummary = items.map(i => `${i.name}(${i.size||'M'})×${i.qty||1}`).join(', ');
+  const itemsSummary = items.map(i => {
+    const optStr = (i.options && i.options.length) ? ` [${i.options.join('/')}]` : '';
+    return `${i.name}(${i.size||'M'})×${i.qty||1}${optStr}`;
+  }).join(', ');
   const meta = [o.location, itemsSummary].filter(Boolean).join(' · ');
   const orderTimeStr = fmtTime(o.orderTime);
   const delivLabel = o.deliveryLabel || o.deliveryDate || '';
@@ -381,7 +384,7 @@ function buildOrderCard(o, num) {
       <div class="drink-icons">${drinkIconsHtml}</div>
       <div class="order-info">
         <div class="order-name" style="${strike}">${o.name || '이름없음'} ${isDone?'<span style=\"color:#1a7a4a;font-size:11px;\">[완료]</span>':''}</div>
-        <div class="order-meta" style="${strike}">${meta || '정보 없음'}</div>
+        <div class="order-meta" style="${strike}" title="${meta.replace(/"/g,'&quot;')}">${meta || '정보 없음'}</div>
         <div class="order-meta">
           ${delivLabel ? `<span class="delivery-tag">${delivLabel}</span>` : ''}
           ${o.deliveryTime ? `<b style="color:#1a7a4a;">${o.deliveryTime}</b>` : ''}
