@@ -78,6 +78,36 @@
   .opt-chip.hl { background: #fff8e1; color: #6d4c00; border-color: #ffcc80; font-weight: 700; }
   .order-card.done .item-lines { opacity: 0.45; text-decoration: line-through; }
 
+  /* 배달시간 임박(15분 이내) / 지남 */
+  .order-card.urgent { border: 2px solid #e53935; background: #fff5f5; }
+  .order-card.late { border: 2px solid #b71c1c; background: #ffebee; }
+  .due-tag { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px; margin-left: 4px; color: #fff; background: #e53935; }
+  .order-card.late .due-tag { background: #b71c1c; animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: 0.45; } }
+
+  /* Hot / Ice 배지 */
+  .temp-badge { font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 6px; flex-shrink: 0; }
+  .temp-hot { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+  .temp-ice { background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
+
+  /* 큰 글씨 모드 (카운터에서 멀리 볼 때) */
+  .btn-big.on { background: #1a7a4a !important; color: #fff !important; border-color: #1a7a4a !important; font-weight: 700; }
+  body.big .order-name { font-size: 22px; }
+  body.big .order-meta { font-size: 15px; }
+  body.big .order-price { font-size: 16px; }
+  body.big .order-time { font-size: 14px; min-width: 60px; }
+  body.big .order-num { font-size: 15px; }
+  body.big .item-line { font-size: 18px; gap: 6px; }
+  body.big .opt-chip { font-size: 15px; padding: 2px 9px; }
+  body.big .size-m { font-size: 13px; }
+  body.big .size-l { font-size: 17px; }
+  body.big .temp-badge { font-size: 13px; }
+  body.big .due-tag, body.big .delivery-tag { font-size: 14px; }
+  body.big .drink-icons { max-width: 220px; }
+  body.big .drink-icon-img, body.big .drink-icon-emoji { width: 64px; height: 64px; font-size: 34px; }
+  body.big .check-btn { width: 52px; height: 52px; font-size: 24px; }
+  body.big .time-group-header { font-size: 16px; }
+
   .empty { text-align: center; padding: 48px 16px; color: #aaa; font-size: 14px; line-height: 2; }
 
   .delivery-tag { display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 6px; background: #e3f2fd; color: #1565c0; font-weight: 600; margin-right: 4px; }
@@ -126,6 +156,7 @@
     <option value="order">접수시간 순</option>
   </select>
   <button class="btn-sound" id="sound-btn" onclick="toggleSound()">🔔 소리 켜짐</button>
+  <button class="btn-big" id="big-btn" onclick="toggleBig()">🔍 큰 글씨</button>
   <button class="btn-done-all" onclick="markAllDone()">✅ 전체 완료</button>
 </div>
 
@@ -186,6 +217,27 @@ function getDrinkIconHtml(name) {
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// "아메리카노(Ice)" → { base: "아메리카노", temp: "ice" }
+function splitTemp(name) {
+  const m = String(name || '').match(/^(.*?)\s*\((hot|ice)\)\s*$/i);
+  return m ? { base: m[1], temp: m[2].toLowerCase() } : { base: String(name || ''), temp: '' };
+}
+function tempBadge(temp) {
+  if (temp === 'hot') return '<span class="temp-badge temp-hot">🔥 HOT</span>';
+  if (temp === 'ice') return '<span class="temp-badge temp-ice">🧊 ICE</span>';
+  return '';
+}
+
+// 오늘 대기 중인 주문의 배달시간까지 남은 분 (해당 없으면 null)
+const DUE_SOON_MIN = 15;
+function minutesUntilDelivery(o) {
+  if (o.status === '완료' || getOrderDate(o) !== getTodayStr()) return null;
+  const m = String(o.deliveryTime || '').match(/(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const now = new Date();
+  return (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) - (now.getHours() * 60 + now.getMinutes());
 }
 
 function sizeBadge(size) {
@@ -281,6 +333,20 @@ function toggleSound() {
   btn.textContent = soundEnabled ? '🔔 소리 켜짐' : '🔕 소리 꺼짐';
   btn.className = soundEnabled ? 'btn-sound' : 'btn-sound off';
 }
+
+// ─── 큰 글씨 모드 (이 기기에 기억) ───────────────────────────
+function setBig(on) {
+  document.body.classList.toggle('big', on);
+  const btn = document.getElementById('big-btn');
+  btn.classList.toggle('on', on);
+  btn.textContent = on ? '🔍 큰 글씨 켜짐' : '🔍 큰 글씨';
+  try { localStorage.setItem('bigText', on ? '1' : '0'); } catch (e) {}
+}
+function toggleBig() { setBig(!document.body.classList.contains('big')); }
+try { if (localStorage.getItem('bigText') === '1') setBig(true); } catch (e) {}
+
+// 배달 임박 표시가 시간에 맞춰 바뀌도록 30초마다 다시 그립니다
+setInterval(() => { if (allOrders.length) renderOrders(); }, 30000);
 
 // ─── 필터/버튼 ───────────────────────────────────────────────
 function applyFilter() {
@@ -392,7 +458,8 @@ function renderOrders() {
         if (!src) mini = '<span style="font-size:16px;">🥤</span>';
         else if (src.startsWith('emoji:')) mini = `<span style="font-size:16px;">${src.replace('emoji:','')}</span>`;
         else mini = `<img src="${src}" alt="" style="width:18px;height:18px;border-radius:50%;object-fit:cover;" onerror="this.style.display='none'">`;
-        return `<div class="chip">${mini}<span>${name}</span><span class="cnt">${cnt}잔</span></div>`;
+        const { base, temp } = splitTemp(name);
+        return `<div class="chip">${mini}${tempBadge(temp)}<span>${esc(base)}</span><span class="cnt">${cnt}잔</span></div>`;
       })
       .join('');
   }
@@ -462,15 +529,20 @@ function buildOrderCard(o, num) {
   const itemLinesHtml = items.map(i => {
     const qty = i.qty || 1;
     const opts = (i.options || []).map((v, idx) => buildOptChip(i.name, v, idx)).join('');
-    return `<div class="item-line">${sizeBadge(i.size)}<span class="item-name">${esc(i.name || '?')}</span>${qty > 1 ? `<span class="item-qty">×${qty}</span>` : ''}${opts}</div>`;
+    const { base, temp } = splitTemp(i.name || '?');
+    return `<div class="item-line">${sizeBadge(i.size)}${tempBadge(temp)}<span class="item-name">${esc(base)}</span>${qty > 1 ? `<span class="item-qty">×${qty}</span>` : ''}${opts}</div>`;
   }).join('');
   const meta = [o.location, itemsSummary].filter(Boolean).join(' · ');
   const orderTimeStr = fmtTime(o.orderTime);
   const delivLabel = o.deliveryLabel || o.deliveryDate || '';
   const strike = isDone ? 'text-decoration:line-through;text-decoration-thickness:2px;color:#aaa;' : '';
   const cardBg = isDone ? 'background:#f0f0f0;' : '';
+  const mins = minutesUntilDelivery(o);
+  let dueClass = '', dueTag = '';
+  if (mins !== null && mins < 0) { dueClass = ' late'; dueTag = `<span class="due-tag">⚠️ ${-mins}분 지남</span>`; }
+  else if (mins !== null && mins <= DUE_SOON_MIN) { dueClass = ' urgent'; dueTag = `<span class="due-tag">⏰ ${mins === 0 ? '지금' : mins + '분 남음'}</span>`; }
 
-  return `<div class="order-card${isDone?' done':''}" id="card-${o.id}" style="${cardBg}">
+  return `<div class="order-card${isDone?' done':''}${dueClass}" id="card-${o.id}" style="${cardBg}">
     <div class="order-top-row">
       <div class="order-num">#${num}</div>
       <div class="order-time">${orderTimeStr}<br><span style="font-size:10px;color:#bbb;">접수</span></div>
@@ -481,7 +553,7 @@ function buildOrderCard(o, num) {
         <div class="item-lines" title="${esc(meta)}">${itemLinesHtml || '<span class="order-meta">정보 없음</span>'}</div>
         <div class="order-meta">
           ${delivLabel ? `<span class="delivery-tag">${delivLabel}</span>` : ''}
-          ${o.deliveryTime ? `<b style="color:#1a7a4a;">${o.deliveryTime}</b>` : ''}
+          ${o.deliveryTime ? `<b style="color:#1a7a4a;">${o.deliveryTime}</b>` : ''}${dueTag}
           ${o.extraRequest ? ` · 📝 ${o.extraRequest}` : ''}
         </div>
         <div class="order-price" style="${strike}">${fmtPrice(o.totalPrice)}</div>
