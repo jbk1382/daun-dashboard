@@ -63,8 +63,20 @@
   .drink-icon-box { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
   .drink-icon-img { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; background: #f0faf4; border: 1px solid #e0f0e6; }
   .drink-icon-emoji { width: 44px; height: 44px; border-radius: 12px; background: #f0faf4; border: 1px solid #e0f0e6; display: flex; align-items: center; justify-content: center; font-size: 24px; }
-  .drink-size-badge { font-size: 10px; font-weight: 700; color: #fff; background: #1a7a4a; border-radius: 99px; padding: 1px 7px; }
+  /* 사이즈 배지: M은 작고 차분하게, L은 크고 눈에 띄게 */
+  .size-badge { font-weight: 800; border-radius: 99px; line-height: 1.3; flex-shrink: 0; }
+  .size-m { font-size: 10px; color: #37474f; background: #e3e8eb; padding: 1px 7px; }
+  .size-l { font-size: 13px; color: #fff; background: #e65100; padding: 1px 9px; box-shadow: 0 0 0 2px #ffe0b2; }
   .drink-qty-badge { font-size: 9px; color: #555; font-weight: 600; }
+
+  /* 음료별 한 줄: 사이즈 · 이름 · 수량 · 옵션 칩 */
+  .item-lines { margin-top: 4px; display: flex; flex-direction: column; gap: 4px; }
+  .item-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 13px; }
+  .item-name { font-weight: 600; color: #333; }
+  .item-qty { font-weight: 800; color: #c62828; }
+  .opt-chip { font-size: 11px; padding: 1px 7px; border-radius: 6px; background: #f3f3f3; color: #555; border: 1px solid #e6e6e6; white-space: nowrap; }
+  .opt-chip.hl { background: #fff8e1; color: #6d4c00; border-color: #ffcc80; font-weight: 700; }
+  .order-card.done .item-lines { opacity: 0.45; text-decoration: line-through; }
 
   .empty { text-align: center; padding: 48px 16px; color: #aaa; font-size: 14px; line-height: 2; }
 
@@ -77,8 +89,8 @@
   .time-group-header .tg-pending { background: #ff9800; color: #fff; border-radius: 99px; padding: 1px 8px; font-size: 11px; }
 
   /* 날짜 탭 */
-  .date-tab { display: flex; padding: 8px 16px; background: #fff; border-bottom: 1px solid #f0f0f0; gap: 6px; }
-  .date-btn { font-size: 12px; padding: 5px 14px; border-radius: 99px; border: 1px solid #ddd; background: #fff; color: #666; cursor: pointer; font-family: inherit; font-weight: 600; }
+  .date-tab { display: flex; padding: 8px 16px; background: #fff; border-bottom: 1px solid #f0f0f0; gap: 6px; overflow-x: auto; }
+  .date-btn { flex-shrink: 0; white-space: nowrap; font-size: 12px; padding: 5px 14px; border-radius: 99px; border: 1px solid #ddd; background: #fff; color: #666; cursor: pointer; font-family: inherit; font-weight: 600; }
   .date-btn.active { background: #1a7a4a; color: #fff; border-color: #1a7a4a; }
 </style>
 </head>
@@ -142,6 +154,7 @@ const firebaseConfig = {
 let allOrders = [];
 let db = null;
 let drinkIconMap = {}; // 음료 이름 -> 이미지/이모지 매핑 (config/drinks에서 로드)
+let drinkConfigMap = {}; // 음료 이름 -> 메뉴 설정 전체 (옵션 그룹 이름을 찾는 데 사용)
 // 완료 상태는 각 주문 객체의 status 필드(Firestore에 영구 저장)로 관리합니다
 let soundEnabled = true;
 let filterMode = 'all';
@@ -171,13 +184,69 @@ function getDrinkIconHtml(name) {
   return `<img class="drink-icon-img" src="${src}" alt="" onerror="this.outerHTML='<div class=&quot;drink-icon-emoji&quot;>🥤</div>'">`;
 }
 
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function sizeBadge(size) {
+  const s = String(size || 'M').toUpperCase();
+  return `<span class="size-badge ${s === 'L' ? 'size-l' : 'size-m'}">${esc(s)}</span>`;
+}
+
+// ─── 옵션 이모지 ─────────────────────────────────────────────
+// 주문에는 옵션 값("보통", "1t" 등)만 저장되고 옵션 이름("꿀", "시럽")은 없습니다.
+// 주문앱은 메뉴 설정의 옵션 순서대로 값을 저장하므로, 같은 순번의 옵션 그룹에서 이름을 찾고
+// 메뉴가 바뀌어 순번이 안 맞으면 그 값을 선택지로 가진 그룹을 찾습니다.
+const HIDDEN_CHOICES = ['추가 안함'];
+
+function findOptionGroup(drinkName, value, idx) {
+  const groups = (drinkConfigMap[drinkName] || {}).options || [];
+  const g = groups[idx];
+  if (g && (g.choices || []).includes(value)) return g;
+  return groups.find(x => (x.choices || []).includes(value)) || null;
+}
+
+function optionEmoji(label, value) {
+  const s = label + ' ' + value;
+  if (/샷/.test(s)) {
+    const n = parseInt(value, 10) || 1;
+    return '☕'.repeat(Math.min(Math.max(n, 1), 3));
+  }
+  if (/꿀/.test(s)) return '🍯';
+  if (/시럽/.test(s)) return '🍬';
+  if (/딸기/.test(s)) return '🍓';
+  if (/두유/.test(value)) return '🫘';
+  if (/우유/.test(value)) return '🥛';
+  if (/^물$/.test(value)) return '💧';
+  if (/no ice/i.test(value)) return '🚫🧊';
+  if (/얼음|ice/i.test(s)) return '🧊';
+  if (/달게|당도/.test(s)) return '🍃';
+  return '➕';
+}
+
+function buildOptChip(drinkName, value, idx) {
+  if (!value || HIDDEN_CHOICES.includes(value)) return '';
+  const g = findOptionGroup(drinkName, value, idx);
+  const label = g ? String(g.label || '').trim() : '';
+  const text = value.replace(/^[^\p{L}\p{N}]+/u, '').trim(); // "🧊 With Ice" → "With Ice"
+  // 샷·베이스·얼음은 값만으로 뜻이 통하고, 시럽·꿀 같은 추가 옵션은 이름을 붙입니다
+  const short = label.replace(/추가|수제/g, '').trim();
+  const showLabel = short && !/샷|베이스|얼음/.test(label) && !text.includes(short);
+  const isNonDefault = g && g.default && g.default !== value;
+  return `<span class="opt-chip${isNonDefault ? ' hl' : ''}">${optionEmoji(label, value)} ${esc(showLabel ? short + ' ' + text : text)}</span>`;
+}
+
 // config/drinks에서 음료별 아이콘 정보를 불러와 매핑 구성
 function loadDrinkIcons() {
   if (!db) return;
   db.collection('config').doc('drinks').get().then(snap => {
     if (snap.exists) {
       const list = snap.data().list || [];
-      list.forEach(d => { if (d.name) drinkIconMap[d.name] = d.image || ''; });
+      list.forEach(d => {
+        if (!d.name) return;
+        drinkIconMap[d.name] = d.image || '';
+        drinkConfigMap[d.name] = d;
+      });
       renderOrders(); // 아이콘 매핑 적용해서 다시 그리기
     }
   }).catch(err => console.error('음료 아이콘 로드 실패:', err));
@@ -378,11 +447,10 @@ function buildOrderCard(o, num) {
   // 각 음료를 개별 이미지+사이즈+수량으로 표시
   const drinkIconsHtml = items.map(i => {
     const iconHtml = getDrinkIconHtml(i.name);
-    const size = i.size || 'M';
     const qty = i.qty || 1;
     return `<div class="drink-icon-box">
       ${iconHtml}
-      <span class="drink-size-badge">${size}</span>
+      ${sizeBadge(i.size)}
       ${qty > 1 ? `<span class="drink-qty-badge">×${qty}</span>` : ''}
     </div>`;
   }).join('');
@@ -390,6 +458,12 @@ function buildOrderCard(o, num) {
     const optStr = (i.options && i.options.length) ? ` [${i.options.join('/')}]` : '';
     return `${i.name}(${i.size||'M'})×${i.qty||1}${optStr}`;
   }).join(', ');
+  // 음료마다 한 줄: 사이즈 · 이름 · 수량 · 옵션(이모지)
+  const itemLinesHtml = items.map(i => {
+    const qty = i.qty || 1;
+    const opts = (i.options || []).map((v, idx) => buildOptChip(i.name, v, idx)).join('');
+    return `<div class="item-line">${sizeBadge(i.size)}<span class="item-name">${esc(i.name || '?')}</span>${qty > 1 ? `<span class="item-qty">×${qty}</span>` : ''}${opts}</div>`;
+  }).join('');
   const meta = [o.location, itemsSummary].filter(Boolean).join(' · ');
   const orderTimeStr = fmtTime(o.orderTime);
   const delivLabel = o.deliveryLabel || o.deliveryDate || '';
@@ -403,7 +477,8 @@ function buildOrderCard(o, num) {
       <div class="drink-icons">${drinkIconsHtml}</div>
       <div class="order-info">
         <div class="order-name" style="${strike}">${o.name || '이름없음'} ${isDone?'<span style=\"color:#1a7a4a;font-size:11px;\">[완료]</span>':''}</div>
-        <div class="order-meta" style="${strike}" title="${meta.replace(/"/g,'&quot;')}">${meta || '정보 없음'}</div>
+        ${o.location ? `<div class="order-meta" style="${strike}" title="${esc(meta)}">📍 ${esc(o.location)}</div>` : ''}
+        <div class="item-lines" title="${esc(meta)}">${itemLinesHtml || '<span class="order-meta">정보 없음</span>'}</div>
         <div class="order-meta">
           ${delivLabel ? `<span class="delivery-tag">${delivLabel}</span>` : ''}
           ${o.deliveryTime ? `<b style="color:#1a7a4a;">${o.deliveryTime}</b>` : ''}
