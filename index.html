@@ -63,9 +63,9 @@
   .drink-icon-box { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
   .drink-icon-img { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; background: #f0faf4; border: 1px solid #e0f0e6; }
   .drink-icon-emoji { width: 44px; height: 44px; border-radius: 12px; background: #f0faf4; border: 1px solid #e0f0e6; display: flex; align-items: center; justify-content: center; font-size: 24px; }
-  /* 사이즈 배지: M은 작고 차분하게, L은 크고 눈에 띄게 */
+  /* 사이즈 배지 (음료 이미지 밑): M은 초록, L은 더 크게 주황 */
   .size-badge { font-weight: 800; border-radius: 99px; line-height: 1.3; flex-shrink: 0; }
-  .size-m { font-size: 10px; color: #37474f; background: #e3e8eb; padding: 1px 7px; }
+  .size-m { font-size: 11px; color: #fff; background: #1a7a4a; padding: 1px 8px; }
   .size-l { font-size: 13px; color: #fff; background: #e65100; padding: 1px 9px; box-shadow: 0 0 0 2px #ffe0b2; }
   .drink-qty-badge { font-size: 9px; color: #555; font-weight: 600; }
 
@@ -525,12 +525,12 @@ function buildOrderCard(o, num) {
     const optStr = (i.options && i.options.length) ? ` [${i.options.join('/')}]` : '';
     return `${i.name}(${i.size||'M'})×${i.qty||1}${optStr}`;
   }).join(', ');
-  // 음료마다 한 줄: 사이즈 · 이름 · 수량 · 옵션(이모지)
+  // 음료마다 한 줄: 온도 · 이름 · 수량 · 옵션(이모지). 사이즈는 음료 이미지 밑에만 표시합니다
   const itemLinesHtml = items.map(i => {
     const qty = i.qty || 1;
     const opts = (i.options || []).map((v, idx) => buildOptChip(i.name, v, idx)).join('');
     const { base, temp } = splitTemp(i.name || '?');
-    return `<div class="item-line">${sizeBadge(i.size)}${tempBadge(temp)}<span class="item-name">${esc(base)}</span>${qty > 1 ? `<span class="item-qty">×${qty}</span>` : ''}${opts}</div>`;
+    return `<div class="item-line">${tempBadge(temp)}<span class="item-name">${esc(base)}</span>${qty > 1 ? `<span class="item-qty">×${qty}</span>` : ''}${opts}</div>`;
   }).join('');
   const meta = [o.location, itemsSummary].filter(Boolean).join(' · ');
   const orderTimeStr = fmtTime(o.orderTime);
